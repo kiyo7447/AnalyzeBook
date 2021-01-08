@@ -8,19 +8,12 @@ namespace AnalyzeBook
 {
 	class Program
 	{
-		List<Book> _books = new List<Book>();
-		//これは使わない？
-		List<BookNode> _booksFiles = new List<BookNode>();
-		List<BookNode> _mifuriwakeFiles = new List<BookNode>();
+
 		/// <summary>
 		/// アルゴリズムをまとめる
 		/// 
 		/// 既存フォルダを解析して、オブジェクト化
 		///     フォルダ名、日本語名、英名、巻数（配列化）
-		///     
-		/// 
-		///     
-		///     
 		/// </summary>
 		/// <param name="args"></param>
 		static void Main(string[] args)
@@ -28,26 +21,34 @@ namespace AnalyzeBook
 			Console.WriteLine("Hello World!");
 
 			var program = new Program();
-			program.Run(args);
+			bool isUpdate = true;
+			program.Run(args, isUpdate);
 
 
 		}
-		void Run(string[] args)
+		void Run(string[] args, bool isUpdate)
 		{
 			//エラーがあったら止める。
 			bool errFlg = false;
+			/// 本の種類
+			List<Book> _books = new List<Book>();
+			/// 未振り分けの本
+			List<BookNode> _mifuriwakeFiles = new List<BookNode>();
+			var _mangaFolder = new DirectoryInfo(@"D:\まんが");
+			var _mifuriwakeFolder = new DirectoryInfo(@"D:\まんが_未振り分け");
 
-			//■■■まんがフォルダを解析して。_booksを作ります。
-			List<DirectoryInfo> mangaFolder = new List<DirectoryInfo>(new DirectoryInfo(@"D:\まんが").GetDirectories());
+
+			Console.WriteLine("■Phase.1 まんがフォルダを解析して。_books(本の種類)を作ります。");
+			List<DirectoryInfo> mangaFolder = new List<DirectoryInfo>(_mangaFolder.GetDirectories());
 			mangaFolder.All(dic =>
 			{
-				Console.WriteLine($"まんがフォルダ={dic.Name}");
+				Console.WriteLine($"まんがフォルダ=「{dic.Name}」から本の種類を取り出します。");
 				dic.GetDirectories().All(bookDir =>
 				{
 					bookDir.GetFiles().All(file =>
 					{
 						var bookNode = AnalyzeBook(file);
-						_booksFiles.Add(bookNode);
+						//_booksFiles.Add(bookNode);
 
 						if (_books.Where(b => b.AlphabetName == bookNode.AlphabetName).Count() == 0)
 						{
@@ -68,8 +69,9 @@ namespace AnalyzeBook
 				});
 				return true;
 			});
-			Console.WriteLine($"まんがフォルダ数={mangaFolder.Count}");
+			Console.WriteLine($"解析したまんがフォルダ数={mangaFolder.Count}");
 			Console.WriteLine($"本の種類={_books.Count}");
+			Console.WriteLine($"本の種類の解析を完了しました。");
 
 
 			if (errFlg == true)
@@ -80,12 +82,11 @@ namespace AnalyzeBook
 			}
 
 
-			//■■■未振り分けの書籍を_mifuriwakeFielsに保存します。
-
-			List<DirectoryInfo> mifuriwakeFolder = new List<DirectoryInfo>(new DirectoryInfo(@"D:\まんが_未振り分け").GetDirectories());
+			Console.WriteLine("■Phase.2 未振り分けの書籍を_mifuriwakeFielsに保存します。");
+			List<DirectoryInfo> mifuriwakeFolder = new List<DirectoryInfo>(_mifuriwakeFolder.GetDirectories());
 			mifuriwakeFolder.All(dic =>
 			{
-				Console.WriteLine($"未振り分けまんがフォルダ={dic.Name}");
+				Console.WriteLine($"未振り分けまんがフォルダ={dic.Name}, 冊数={dic.GetFiles().Length}");
 				dic.GetFiles().All(file =>
 				{
 					var bookNode = AnalyzeBook(file);
@@ -94,16 +95,15 @@ namespace AnalyzeBook
 				});
 				return true;
 			});
-			Console.WriteLine($"まんがフォルダ数={mifuriwakeFolder.Count}");
+			Console.WriteLine($"未振り分けまんがフォルダ数={mifuriwakeFolder.Count}, 冊数={_mifuriwakeFiles.Count}");
 
-
-			Console.WriteLine($"ロードが完了した本の数{_mifuriwakeFiles.Where(e => e.IsLoaded == true).Count()}");
+			Console.WriteLine($"未振り分け本：ロードが完了した冊数={_mifuriwakeFiles.Where(e => e.IsLoaded == true).Count()}");
 			_mifuriwakeFiles.Where(e => e.IsLoaded == true).All(bn =>
 			{
 				//Console.WriteLine($"LoadedFileName={bn.FileInfo.Name}\tTitle={bn.AlphabetName}");
 				return true;
 			});
-			Console.WriteLine($"ロードが失敗した本の数{_mifuriwakeFiles.Where(e => e.IsLoaded == false).Count()}");
+			Console.WriteLine($"未振り分け本：ロードが失敗した冊数={_mifuriwakeFiles.Where(e => e.IsLoaded == false).Count()}");
 			_mifuriwakeFiles.Where(e => e.IsLoaded == false).All(bn =>
 			{
 				//Console.WriteLine($"LoadedFileName={bn.FileInfo.Name}\tTitle={bn.AlphabetName}");
@@ -111,49 +111,52 @@ namespace AnalyzeBook
 			});
 
 
-			//まずは、_booksにある本を移動します。
+			Console.WriteLine("■Phase3 本の種類(_books)にある該当本(_mifuriwakeFiles)を移動します。");
 			int cnt = 0;
-			_mifuriwakeFiles.All(f => {
+			_mifuriwakeFiles.All(f =>
+			{
 				var books = _books.Where(e => e.AlphabetName == f.AlphabetName);
 				if (books.Count() == 1)
 				{
 					//移動可能
 					Console.WriteLine($"fromBook={f.FileInfo.Name}. toFolder={books.FirstOrDefault().DirectoryInfo.FullName}");
-					f.FileInfo.MoveTo(Path.Combine(books.FirstOrDefault().DirectoryInfo.FullName,f.FileInfo.Name), true);
+					if (isUpdate == true)
+						f.FileInfo.MoveTo(Path.Combine(books.FirstOrDefault().DirectoryInfo.FullName, f.FileInfo.Name), true);
+					else
+						WriteLineUpdate($"本を移動します。{f.FileInfo.FullName} to {Path.Combine(books.FirstOrDefault().DirectoryInfo.FullName, f.FileInfo.Name)}");
 					cnt++;
 				}
 				else if (books.Count() > 1)
-				{
 					//エラーが発生するわけがない
 					WriteLineError($"fromBook={f.FileInfo.Name}. toFolder={books.FirstOrDefault().DirectoryInfo.FullName}");
-				}
 				else
 				{
+					//移動先がない。
 					//Console.WriteLine($"書籍の名前={f.FileInfo.Name}");
 				}
-				
+
 				return true;
 			});
-			Console.Write($"移動対象ファイル数={_mifuriwakeFiles.Count()}, 移動可能数={cnt}");
+			Console.WriteLine($"移動対象の未振り分け本={_mifuriwakeFiles.Count()}冊, 移動数={cnt}");
 
-
-			//3巻以上の本を分けます。
+			Console.WriteLine("■Phase4 3巻以上の本を「まんが（新作）」フォルダへフォルダを作成してその中に振り分けます。");
 			cnt = 0;
-			_mifuriwakeFiles.Where(e => { return e.MaxNum > 2; }).All(f => {
+			_mifuriwakeFiles.Where(e => { return e.MaxNum > 2; }).All(f =>
+			{
 				//移動可能
-				if (new DirectoryInfo(Path.Combine(new DirectoryInfo(@"D:\まんが\まんが（新作）").FullName, f.AlphabetName)).Exists ==false)
-				{
+				if (new DirectoryInfo(Path.Combine(new DirectoryInfo(@"D:\まんが\まんが（新作）").FullName, f.AlphabetName)).Exists == false)
 					new DirectoryInfo(Path.Combine(new DirectoryInfo(@"D:\まんが\まんが（新作）").FullName, f.AlphabetName)).Create();
-				}
 				Console.WriteLine($"fromBook={f.FileInfo.Name}. toFolder={Path.Combine(new DirectoryInfo(@"D:\まんが\まんが（新作）").FullName, f.AlphabetName, f.FileInfo.Name)}");
-				f.FileInfo.MoveTo(Path.Combine(new DirectoryInfo(@"D:\まんが\まんが（新作）").FullName, f.AlphabetName, f.FileInfo.Name), true);
+				if (isUpdate == true)
+					f.FileInfo.MoveTo(Path.Combine(new DirectoryInfo(@"D:\まんが\まんが（新作）").FullName, f.AlphabetName, f.FileInfo.Name), true);
+				else
+					WriteLineUpdate($"本を移動します。{f.FileInfo.FullName} to {Path.Combine(new DirectoryInfo(@"D:\まんが\まんが（新作）").FullName, f.AlphabetName, f.FileInfo.Name)}");
+
 				cnt++;
 
 				return true;
 			});
-			Console.Write($"移動対象ファイル数={_mifuriwakeFiles.Count()}, 移動可能数={cnt}");
-
-
+			Console.Write($"移動対象の未振り分け本={_mifuriwakeFiles.Count()}冊, 移動数={cnt}");
 
 		}
 
@@ -163,10 +166,19 @@ namespace AnalyzeBook
 		/// <param name="message"></param>
 		void WriteLineError(string message)
 		{
+			_WriteLine(message, ConsoleColor.Red);
+		}
+		void WriteLineUpdate(string message)
+		{
+			_WriteLine(message, ConsoleColor.Blue);
+		}
+		void _WriteLine(string message, ConsoleColor color)
+		{
 			var backColer = Console.ForegroundColor;
-			Console.ForegroundColor = ConsoleColor.Red;
+			Console.ForegroundColor = color;
 			Console.WriteLine(message);
 			Console.ForegroundColor = backColer;
+
 		}
 		BookNode AnalyzeBook(FileInfo file)
 		{
@@ -265,7 +277,7 @@ namespace AnalyzeBook
 		public string AlphabetName { get; set; }
 		public DirectoryInfo DirectoryInfo { get; set; }
 		public string JapaneseName { get; set; }
-//		public List<BookNode> Books { get; set; }
+		//		public List<BookNode> Books { get; set; }
 	}
 	class BookNode
 	{
